@@ -462,17 +462,19 @@ class InotifyEmitter(EventEmitter):
         # Snapshot the watch group before the blocking read. Holding only a
         # local reference means on_thread_stop() can null self._inotify and
         # close the queue without this method raising AttributeError.
+        # A cleared self._inotify means the emitter was stopped, e.g. by
+        # unschedule() from another thread, so return quietly.
         with self._lock:
             inotify = self._inotify
         if inotify is None:
-            logger.error("InotifyEmitter.queue_events() called when the thread is inactive")
             return
         event = inotify.read_event()
         if event is None:
             return
         with self._lock:
             if self._inotify is None:
-                logger.error("InotifyEmitter.queue_events() called when the thread is inactive")
+                # Stopped during the read: unschedule() already removed the
+                # handlers, so the event is dropped.
                 return
             self.build_and_queue_event(event)
 
